@@ -22,21 +22,38 @@ pub struct Task {
     name: String,
     input_args: HashMap<String,String>,
     properties : HashMap<String, String>,
-    depend_on: String,
+    depend_on: HashMap<String,String>,
 }
 
-#[derive(Debug, ProvidesStaticType, Default)]
-struct WorkFlow(RefCell<Vec<Task>>);
+#[derive(Debug, Clone, Deserialize)]
+pub struct Workflow {
+    name : String,
+    version : String,
+}
 
-impl WorkFlow {
-    fn add(&self, kind : String, name : String, input_args : HashMap<String, String>, properties : HashMap<String, String>, depend_on : String) {
-        self.0.borrow_mut().push(Task {
+
+#[derive(Debug, ProvidesStaticType, Default)]
+struct Tasks{
+    tasks : RefCell<Vec<Task>>,
+    workflows: RefCell<Vec<Workflow>>
+}
+
+// #[derive(Debug, ProvidesStaticType)]
+// struct Workflows(RefCell<Workflow>);
+
+impl Tasks {
+    fn add(&self, kind : String, name : String, input_args : HashMap<String, String>, properties : HashMap<String, String>, depend_on : HashMap<String, String>) {
+        self.tasks.borrow_mut().push(Task {
             kind,
             name,
             input_args,
             properties,
             depend_on
         })
+    }
+    fn adds(&self, name : String, version : String ) {
+        // self.0.push(Workflow { name, version})
+        self.workflows.borrow_mut().push(Workflow {name, version })
     }
 }
 
@@ -47,22 +64,34 @@ fn starlark_workflow(builder: &mut GlobalsBuilder) {
         name: String,
         input_args:Value,
         properties: Value,
-        depend_on: String,
+        depend_on: Value,
         eval: &mut Evaluator,
     ) -> anyhow::Result<NoneType> {
 
         let ip_args = serde_json::from_str(&input_args.to_json()?).unwrap();
         let property = serde_json::from_str(&properties.to_json()?).unwrap();
-        // let depnd = serde_json::from_str(&depend_on.to_owned());
+        let depnd = serde_json::from_str(&depend_on.to_json()?).unwrap();
         
-        eval.extra.unwrap().downcast_ref::<WorkFlow>().unwrap().add(
+        eval.extra.unwrap().downcast_ref::<Tasks>().unwrap().add(
             kind,
             name,
             ip_args,
             property,
-            depend_on
+            depnd
         );
        
+        Ok(NoneType)
+    }
+
+    fn workflows(
+        name: String,
+        version : String,
+        eval : &mut Evaluator
+    ) -> anyhow::Result<NoneType> {
+        eval.extra.unwrap().downcast_ref::<Tasks>().unwrap().adds(
+            name,
+            version,
+        );
         Ok(NoneType)
     }
 }
@@ -78,13 +107,14 @@ fn main() {
     // We build our globals adding some functions we wrote
     let globals = GlobalsBuilder::new().with(starlark_workflow).build();
     let module = Module::new();
-    let store = WorkFlow::default();
+    let store = Tasks::default(); 
     {
         let mut eval = Evaluator::new(&module);
         // We add a reference to our store
         eval.extra = Some(&store);
+        
         eval.eval_module(ast, &globals).unwrap();
     }
 
-    println!("{:#?}", store.0);
+    println!("{:#?}", store);
 }

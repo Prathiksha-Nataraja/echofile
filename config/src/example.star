@@ -9,7 +9,9 @@ task(
         "chain" : "westend",
         "operation" : "stakingpayout"
     },
-    ""
+    {
+        
+    }
     # {
     #     "operation" : "",
     #     "task" : {
@@ -18,3 +20,5 @@ task(
 
     # },
 )
+
+workflows("workflow", "0.0.1")
